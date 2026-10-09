@@ -1,0 +1,11 @@
+node_modules/
+.npm-cache/
+.next/
+.env*
+!.env.example
+.poc-data/
+.backups/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo

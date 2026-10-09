@@ -1,0 +1,38 @@
+import { test,expect } from '@playwright/test';
+import sharp from 'sharp';
+import { randomUUID } from 'node:crypto';
+test('写真・複数服・重ね順 → モック生成 → 評価 → 再読込 → 削除',async({page,request})=>{
+  const bytes=await sharp({create:{width:160,height:320,channels:3,background:'#a0a5a0'}}).jpeg().toBuffer();
+  await page.goto('/');await expect(page.getByRole('status').first()).toContainText('実際のAI試着ではありません');
+  await page.getByLabel('本人写真',{exact:true}).setInputFiles({name:'test-person.jpg',mimeType:'image/jpeg',buffer:bytes});
+  await expect(page.getByAltText('登録した本人写真')).toBeVisible();
+  await page.getByLabel('服を追加',{exact:true}).setInputFiles([{name:'inner.jpg',mimeType:'image/jpeg',buffer:bytes},{name:'outer.jpg',mimeType:'image/jpeg',buffer:bytes}]);
+  await expect(page.getByLabel('服2のカテゴリ')).toBeVisible();
+  await page.getByLabel('服2のカテゴリ').selectOption('outer');await page.getByLabel('服2を内側へ').click();
+  await expect(page.getByLabel('服1のカテゴリ')).toHaveValue('outer');
+  await page.getByText('本人・服の利用許可と18歳以上を確認しました。ローカル保存に同意します。').click();
+  await page.getByText('カテゴリ、重ね順、同時に着られる組み合わせを確認しました。').click();
+  await page.getByRole('button',{name:'1枚生成する',exact:true}).click();
+  await expect(page.getByAltText('モック結果：元の本人写真')).toBeVisible({timeout:30_000});
+  const caseId='E2E-'+test.info().project.name+'-'+randomUUID();
+  await page.getByLabel('ケース番号').fill(caseId);await page.getByRole('button',{name:'評価を保存',exact:true}).click();
+  await expect(page.getByText('モック評価を保存しました。実品質の集計から除外します。')).toBeVisible();
+  const exportRows=(await (await request.get('/api/export')).json()).data;
+  const row=exportRows.find((r:{case_id:string})=>r.case_id===caseId);expect(row.provider).toBe('mock');expect(row.actual_jpy).toBe(0);
+  const detail=(await (await request.get('/api/tryon/'+row.id)).json()).data;expect(detail.inputs.items).toHaveLength(2);expect(detail.inputs.items[0].category).toBe('outer');
+  await page.reload();await expect(page.getByAltText('登録した本人写真')).toBeVisible();
+  await page.getByText('本人・服の利用許可と18歳以上を確認しました。ローカル保存に同意します。').click();
+  await page.getByText('カテゴリ、重ね順、同時に着られる組み合わせを確認しました。').click();
+  const before=(await (await request.get('/api/history')).json()).data.length;
+  await page.getByRole('button',{name:'1枚生成する',exact:true}).click();
+  await expect(page.getByAltText('モック結果：元の本人写真')).toBeVisible();
+  expect((await (await request.get('/api/history')).json()).data.length).toBe(before);
+  page.on('dialog',d=>d.accept());
+  const history=page.locator('.history-row').filter({has:page.getByRole('button',{name:'開く',exact:true})}).first();await history.getByRole('button',{name:'削除',exact:true}).click();
+  await expect(page.getByText(/入力・結果・評価を削除しました/)).toBeVisible();
+  expect((await request.get('/api/tryon/'+row.id)).status()).toBe(404);expect((await request.get('/api/images/'+detail.image_id)).status()).toBe(404);
+});
+test('不正な画像とクロスサイト要求を拒否',async({request})=>{
+  const invalid=await request.post('/api/uploads?kind=person',{headers:{Origin:'http://127.0.0.1:3000','Content-Type':'image/jpeg'},data:Buffer.from('not jpeg')});expect(invalid.status()).toBe(422);
+  const denied=await request.post('/api/tryon',{headers:{Origin:'https://evil.example'},data:{}});expect(denied.status()).toBe(403);
+});

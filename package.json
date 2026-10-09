@@ -1,0 +1,46 @@
+{
+  "name": "manyuaru-phase-a",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22 <25"
+  },
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1",
+    "worker": "tsx --env-file=.env.local scripts/worker.ts",
+    "db:start": "bash scripts/db-start.sh",
+    "db:migrate": "tsx --env-file=.env.local scripts/migrate.ts",
+    "db:stop": "docker stop manyuaru-poc-db",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "test:db": "tsx --env-file=.env.local scripts/db-test.ts",
+    "test:e2e": "playwright test",
+    "backup": "tsx --env-file=.env.local scripts/data.ts backup",
+    "purge": "tsx --env-file=.env.local scripts/data.ts purge",
+    "restore": "tsx --env-file=.env.local scripts/data.ts restore",
+    "cost:settle": "tsx --env-file=.env.local scripts/data.ts settle"
+  },
+  "dependencies": {
+    "next": "16.4.0",
+    "pg": "8.23.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "sharp": "0.35.5",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "26.6.4",
+    "@types/pg": "8.23.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "tailwindcss": "4.3.3",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}
